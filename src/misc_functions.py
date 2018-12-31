@@ -12,7 +12,7 @@ import matplotlib.cm as mpl_color_map
 import torch
 from torch.autograd import Variable
 from torchvision import models
-
+from scipy import misc
 
 def convert_to_grayscale(im_as_arr):
     """
@@ -32,22 +32,47 @@ def convert_to_grayscale(im_as_arr):
     return grayscale_im
 
 
-def save_gradient_images(gradient, file_name):
+def save_gradient_images(data, gradient, file_name):
     """
         Exports the original gradient image
 
     Args:
-        gradient (np arr): Numpy array of the gradient with shape (3, 224, 224)
+        data (torch.Tensor): 1*9*224*224
+        gradient (np arr): Numpy array of the gradient with shape (3, 64, 112, 112)
         file_name (str): File name to be exported
     """
     if not os.path.exists('../results'):
         os.makedirs('../results')
-    # Normalize
-    gradient = gradient - gradient.min()
-    gradient /= gradient.max()
+    # get the height and width of the base image
+    # prepare for the out image
+    height = gradient.shape[2]
+    width = gradient.shape[3]
+    out_image = np.zeros([2*height, 3*width, 3])
+    # preprocess data
+    data = data.cpu().numpy().copy()
+    data = data.reshape([-1,3,data.shape[2],data.shape[3]])
+    # mean in the channel dim
+    gradient = np.mean(gradient, axis=1)
+    # image file name
+    path_to_file = file_name+".jpg"
     # Save image
-    path_to_file = os.path.join('../results', file_name + '.jpg')
-    save_image(gradient, path_to_file)
+    for i in range(gradient.shape[0]):
+        now_gradient = gradient[i]
+        # Normalize
+        now_gradient = now_gradient - now_gradient.min()
+        now_gradient /= now_gradient.max()
+        # gray to color
+        color_map = mpl_color_map.get_cmap('hsv')
+        now_gradient = color_map(now_gradient)
+        now_gradient = now_gradient[:,:,0:3]
+        # process input image
+        now_data = data[i].transpose([1,2,0])[:,:,::-1]
+        now_data = misc.imresize(now_data, size=(height,width))
+        now_data = now_data/255.0
+        # fill the out_image
+        out_image[:height,i*width:(i+1)*width,:] = now_gradient
+        out_image[height:2*height,i*width:(i+1)*width,:] = now_data
+    save_image(out_image, path_to_file)
 
 
 def save_class_activation_images(org_img, activation_map, file_name):
@@ -107,17 +132,24 @@ def save_image(im, path):
     """
     if isinstance(im, np.ndarray):
         if len(im.shape) == 2:
-            im = np.expand_dims(im, axis=0)
-        if im.shape[0] == 1:
+            # im = np.expand_dims(im, axis=0)
+        # if im.shape[0] == 1:
             # Converting an image with depth = 1 to depth = 3, repeating the same values
             # For some reason PIL complains when I want to save channel image as jpg without
             # additional format in the .save()
-            im = np.repeat(im, 3, axis=0)
+            # im = np.repeat(im, 3, axis=0)
             # Convert to values to range 1-255 and W,H, D
-        if im.shape[0] == 3:
+            # Get colormap
+            color_map = mpl_color_map.get_cmap('terrain')
+            im = color_map(im)
+            im = im[:,:,0:3]
+            # im = im * 255
+
+        elif im.shape[0] == 3:
             im = im.transpose(1, 2, 0) * 255
-        im = Image.fromarray(im.astype(np.uint8))
-    im.save(path)
+        # im = Image.fromarray(im.astype(np.uint8))
+    # im.save(path)
+    misc.imsave(path, im)
 
 
 def preprocess_image(pil_im, resize_im=True):
