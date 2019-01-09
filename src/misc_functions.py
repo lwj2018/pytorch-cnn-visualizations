@@ -80,33 +80,45 @@ def save_class_activation_images(org_img, activation_map, file_name):
         Saves cam activation map and activation map on the original image
 
     Args:
-        org_img (PIL img): Original image
-        activation_map (numpy arr): Activation map (grayscale) 0-255
+        org_img (PIL img): Original image 
+            shape : 3x3x224x224
+        activation_map (numpy arr): Activation map (grayscale) 0-255 
+            shape : 224x224x3
         file_name (str): File name of the exported image
     """
     if not os.path.exists('../results'):
         os.makedirs('../results')
+    # prepare the out image
+    height = org_img.shape[2]
+    width = org_img.shape[3]
+    out_image = np.zeros([3*height, 3*width, 3])
     # Grayscale activation map
-    heatmap, heatmap_on_image = apply_colormap_on_image(org_img, activation_map, 'hsv')
-    # Save colored heatmap
-    path_to_file = os.path.join('../results', file_name+'_Cam_Heatmap.png')
-    save_image(heatmap, path_to_file)
-    # Save heatmap on iamge
-    path_to_file = os.path.join('../results', file_name+'_Cam_On_Image.png')
-    save_image(heatmap_on_image, path_to_file)
-    # SAve grayscale heatmap
-    path_to_file = os.path.join('../results', file_name+'_Cam_Grayscale.png')
-    save_image(activation_map, path_to_file)
+    for i in range(org_img.shape[0]):
+        frame_org_img = org_img[i,::-1,:,:]
+        frame_org_img = frame_org_img.transpose([1,2,0])
+        frame_activation_map = activation_map[:,:,i]
+        heatmap, heatmap_on_image = apply_colormap_on_image(frame_org_img, frame_activation_map, 'jet')
+        heatmap_on_image = np.array(heatmap_on_image)
+        heatmap = np.array(heatmap)
+        out_image[:height,i*width:(i+1)*width] = heatmap[:,:,:3]
+        out_image[height:2*height,i*width:(i+1)*width] = heatmap_on_image[:,:,:3]
+        out_image[2*height:3*height,i*width:(i+1)*width] = frame_org_img
+    # Save heatmap on image
+    path_to_file = file_name+'.png'
+    save_image(out_image, path_to_file)
+
 
 
 def apply_colormap_on_image(org_im, activation, colormap_name):
     """
         Apply heatmap on image
     Args:
-        org_img (PIL img): Original image
+        org_im (PIL img): Original image
         activation_map (numpy arr): Activation map (grayscale) 0-255
         colormap_name (str): Name of the colormap
     """
+    # convert np array to PIL image
+    org_im = Image.fromarray(org_im.astype(np.uint8))
     # Get colormap
     color_map = mpl_color_map.get_cmap(colormap_name)
     no_trans_heatmap = color_map(activation)

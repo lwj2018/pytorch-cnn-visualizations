@@ -90,6 +90,6 @@ def get_model_data():
             batch_size=1, shuffle=False,
             num_workers=args.workers * 2, pin_memory=True)
 
-    net = torch.nn.DataParallel(net.cuda())
+    # net = torch.nn.DataParallel(net.cuda())
 
     return net, data_loader

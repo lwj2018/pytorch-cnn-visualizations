@@ -15,7 +15,7 @@ from misc_functions import (get_example_params,
                             get_positive_negative_saliency)
 
 from get_model_data import get_model_data
-
+import time
 
 class GuidedBackprop():
     """
@@ -77,22 +77,27 @@ class GuidedBackprop():
 
 if __name__ == '__main__':
     pretrained_model, data_loader = get_model_data()
+    pretrained_model = torch.nn.DataParallel(pretrained_model.cuda())
     # Guided backprop
     GBP = GuidedBackprop(pretrained_model)
     # Get gradients
-    for i, (data, target) in enumerate(data_loader):
+    for i, (data, target, idx) in enumerate(data_loader):
         # print
         print("Processing {}".format(i))
-        # get the input and target
+        # get the input, target, idx
         data.requires_grad = True
         input_var = torch.autograd.Variable(data.view(-1, 3, data.size(2), data.size(3)))
         input_var = torch.autograd.Variable(data)
         target_class = int(target.cpu().numpy().copy()[0])
+        idx = int(idx.cpu().numpy().copy()[0])
+        start = time.time()  # 计时
         guided_grads = GBP.generate_gradients(input_var, target_class)
+        end = time.time() # 计时
+        print("costing time {} s".format(end - start))
         np.save("../results/test.npy",guided_grads)
         guided_grads = np.load("../results/test.npy")
         file_name_to_export = "/mnt/data/liweijie/trn_visualization/"+\
-                                "trn_guidedbackpro/{:d}_{:d}_test".format(target_class, i)
+                                "trn_guidedbackpro1/{:d}_{:d}_test".format(target_class, idx)
         # Save colored gradients
         save_gradient_images(data, guided_grads, file_name_to_export + '_Guided_BP_color')
     print('Guided backprop completed')
